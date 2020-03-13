@@ -1,12 +1,14 @@
 package life;
 
 
+import javafx.geometry.Pos;
+
 import java.util.Random;
 
 public class MotoreImmobile{
 
     Universe universe;
-    int size;
+    Size size;
 
     MotoreImmobile(Universe universe){
         this.universe = universe;
@@ -16,21 +18,26 @@ public class MotoreImmobile{
     public void initialize(){
         this.size = universe.getSize();
 
-        universe.setMap(generate());
+        universe.setMap(size.makeByteMatrix());
+        universe.setAlive(0);
+    }
+
+    public void fillRandom(){
+        universe.setMap(generateRandom());
         universe.setAlive(countAlive());
     }
 
-    private byte[][] generate(){
+    private byte[][] generateRandom(){
 
-        byte[][] tmpMap = new byte[size][size];
+        byte[][] tmpMap = size.makeByteMatrix();
 
         Random rand = new Random();
 
-        for (int i = 0; i < size; i++)
-            for (int k = 0; k < size; k++) {
-                tmpMap[i][k] = (byte)(rand.nextBoolean() ? 1 : 0);
-                updateNeighboursOf(i, k, (byte) 0, tmpMap[i][k]);
-            }
+        PositionPointer position = new PositionPointer(size);
+        while(position.increment()) {
+            tmpMap[position.y][position.x] = (byte) (rand.nextBoolean() ? 1 : 0);
+            updateNeighboursOf(universe.getNeighbours(), position, (byte) 0, tmpMap[position.y][position.x]);
+        }
 
         return tmpMap;
     }
@@ -41,34 +48,37 @@ public class MotoreImmobile{
     }
 
     public void evolve(){
-        byte[][] futureMap = new byte[size][size];
+        byte[][] futureMap = size.makeByteMatrix().clone();
         byte[][] neighbours = universe.getNeighbours();
         byte[][] map = universe.getMap();
 
-        for(int i = 0; i < size; i++){
-            for(int k = 0; k < size; k++){
 
-                byte futureStatus = 0;
-                byte thisNeighbours = neighbours[i][k];
+        byte thisNeighbours;
+        byte futureStatus;
 
-                if(map[i][k] == 1) {
-                    if (thisNeighbours == 2 || thisNeighbours == 3)
-                        futureStatus = 1;
+        PositionPointer pos = new PositionPointer(size);
+        while(pos.increment()){
 
-                }else if(thisNeighbours == 3)
-                    futureStatus = 1;
+            if((thisNeighbours = neighbours[pos.y][pos.x]) == 0)
+                continue;
 
-                futureMap[i][k] = futureStatus;
-            }
+            futureStatus = 0;
+
+            if(thisNeighbours == 3)
+                futureStatus = 1;
+
+            else if(map[pos.y][pos.x] == 1 && thisNeighbours == 2)
+                futureStatus = 1;
+
+            futureMap[pos.y][pos.x] = futureStatus;
+            universe.incrementAlive(futureMap[pos.y][pos.x] - map[pos.y][pos.x]);
         }
 
-        for(int i = 0; i < size; i++)
-            for(int k = 0; k < size; k++)
-                updateNeighboursOf(i, k, futureMap[i][k]);
+        pos = new PositionPointer(size);
+        while (pos.increment())
+            updateNeighboursOf(universe.getNeighbours(), pos, futureMap[pos.y][pos.x]);
 
         universe.setMap(futureMap);
-        universe.setAlive(countAlive());
-        universe.setNeighbours(neighbours);
     }
 
     private int countAlive(){
@@ -82,66 +92,86 @@ public class MotoreImmobile{
         return total;
     }
 
-    private void updateNeighboursOf(int x0, int y0, byte newStatus){
+    private void updateNeighboursOf(byte[][] neighbours, Position pos, byte newStatus){
 
-        byte oldStatus = universe.getMap()[x0][y0];
-        updateNeighboursOf(x0, y0, oldStatus, newStatus);
+        byte oldStatus = universe.getCell(pos);
+        updateNeighboursOf(neighbours, pos, oldStatus, newStatus);
     }
 
-    private void updateNeighboursOf(int x0, int y0, byte oldStatus, byte newStatus){
-
-        byte[][] neighbours = universe.getNeighbours();
+    private void updateNeighboursOf(byte[][] neighbours, Position pos, byte oldStatus, byte newStatus){
         byte var = (byte) (newStatus - oldStatus);
+
+        if(var == 0)
+            return;
 
         for(int dx = -1; dx <= 1; dx++){
 
-            int x = (x0 + dx) % size;
-            x = x < 0 ? size + x : x;
+            int x = (pos.x + dx) % size.getX();
+            x = x < 0 ? size.getX() + x : x;
 
             for(int dy = -1; dy <= 1; dy++){
 
-                int y = (y0 + dy) % size;
-                y = y < 0 ? size + y : y;
+                int y = (pos.y + dy) % size.getY();
+                y = y < 0 ? size.getY() + y : y;
 
                 if(!(dx == 0 && dy == 0))
-                    neighbours[x][y] += var;
+                    neighbours[y][x] += var;
+
             }
         }
-
-        universe.setNeighbours(neighbours);
     }
 
-    public void loadSavedMap(int size, int generationNumber, byte[][] map){
-        this.size = size;
-        universe.loadSavedMap(size, generationNumber, map);
+    public void loadSavedMap(byte[][] map){
+        Size newSize =  new Size(map);
+
+        universe.initialize(newSize);
+        this.size = newSize;
+
+        universe.setMap(map);
         universe.setNeighbours(countNeighbours());
         universe.setAlive(countAlive());
     }
 
     private byte[][] countNeighbours(){
-        byte[][] neighbours = new byte[size][size];
+        byte[][] neighbours = size.makeByteMatrix();
         byte[][] map = universe.getMap();
 
-        for(int i = 0; i < size; i++) {
-            for(int k = 0; k < size; k++) {
-                for (int dx = -1; dx <= 1; dx++) {
+        PositionPointer pos = new PositionPointer(size);
+        while(pos.increment()){
+            for (int dx = -1; dx <= 1; dx++) {
 
-                    int x = (i + dx) % size;
-                    x = x < 0 ? size + x : x;
+                int x = (pos.x + dx) % size.getX();
+                x = x < 0 ? size.getX() + x : x;
 
-                    for (int dy = -1; dy <= 1; dy++) {
+                for (int dy = -1; dy <= 1; dy++) {
 
-                        int y = (k + dy) % size;
-                        y = y < 0 ? size + y : y;
+                    int y = (pos.y + dy) % size.getY();
+                    y = y < 0 ? size.getY() + y : y;
 
-                        if (!(dx == 0 && dy == 0))
-                            neighbours[i][k] += map[x][y];
-                    }
+                    if (!(dx == 0 && dy == 0))
+                        neighbours[pos.y][pos.x] += map[y][x];
+
                 }
             }
         }
 
         return neighbours;
+    }
+
+    public void insertPatternCentered(byte[][] pattern){
+        insertPatternInPosition(pattern, (size.getX() - pattern[0].length) / 2, (size.getY() - pattern.length) / 2);
+    }
+
+    public void insertPatternInPosition(byte[][] pattern, int x, int y){
+        byte[][] map = universe.getMap();
+
+        PositionPointer pos = new PositionPointer(new Size(pattern));
+        while(pos.increment())
+            map[y + pos.y][x + pos.x] |= pattern[pos.y][pos.x];
+
+        universe.setMap(map);
+        universe.setNeighbours(countNeighbours());
+        universe.setAlive(countAlive());
     }
 
 }

@@ -1,21 +1,21 @@
 package life;
 
+import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
+
 import java.io.*;
 import java.nio.CharBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class GameSaveLoad {
 
-    public static void saveToFile(Universe universe, String path){
+    public static void saveToFile(byte[][] map, String path){
         System.out.print(path);
-        System.out.println(universe);
         File saveFile = new File(path + ".life");
 
         FileOutputStream outputStream;
         try {
             outputStream = new FileOutputStream(saveFile);
-            outputStream.write(generateGameSaveString(universe).getBytes());
+            outputStream.write(generateGameSaveString(map).getBytes());
             outputStream.flush();
             outputStream.close();
 
@@ -24,113 +24,60 @@ public class GameSaveLoad {
         }
     }
 
-    public static void loadSavedGame(MotoreImmobile motoreImmobile, String path){
-        System.out.println(path);
+    public static byte[][] loadPattern(String path){
+        File savedFile =  new File(path);
 
-        File savedFile = new File(path);
-        FileReader savedFileReader;
+        if(savedFile.exists()){
+            String[] parts = savedFile.getName().split("[.]");
 
+            if(parts.length == 2){
+                String desinence = parts[1];
 
-        try {
-            savedFileReader = new FileReader(savedFile);
-            List<Byte> buffer = new ArrayList<>();
+                if(desinence.equals("life"))
+                    return loadFromSavedLife(savedFile);
 
-            while(savedFileReader.ready())
-                buffer.add((byte)savedFileReader.read());
-
-            Byte[] helper = new Byte[buffer.size()];
-            buffer.toArray(helper);
-
-            loadFromSaved(motoreImmobile, helper);
-
-        } catch (IOException e) {
-            e.printStackTrace();
+                else if(desinence.equals("rle"))
+                    return loadFromSavedRle(savedFile);
+            }
         }
 
+        return new byte[0][0];
     }
 
-    public static void loadFromSaved(MotoreImmobile motoreImmobile, Byte[] data){
+    private static byte[][] loadFromSavedLife(File savedFile){
 
-        int positionCounter = 0;
-        String line;
-        boolean done = false;
+        byte [][] savedData;
 
-        int size = 0;
-        int generationNumber = 0;
+        try(Scanner scanner = new Scanner(savedFile)){
 
-        while(!done){
-            line = nextLine(data, positionCounter);
-            positionCounter += line.length() + 1;
+            Size size = extractSizeData(scanner);
 
-            String additionalLine = "";
+            savedData = size.makeByteMatrix();
 
-            switch (line){
-                case("size"):
-                    additionalLine = nextLine(data, positionCounter);
-                    size = Integer.decode(additionalLine);
-                    System.out.println("size");
-                    System.out.println(size);
-                    break;
+            for(int i = 0; i < size.getY(); i++) {
 
-                case("generationNumber"):
-                    additionalLine = nextLine(data, positionCounter);
-                    generationNumber = Integer.decode(additionalLine);
-                    System.out.println("Generation Number");
-                    System.out.println(generationNumber);
-                    break;
+                byte[] rowData = scanner.nextLine().getBytes();
 
-                default:
-                    done = true;
-                    positionCounter -= line.length() + 1;
-                    break;
+                for (int k = 0; k < size.getX(); k++)
+                    if(rowData[k] == 'O')
+                        savedData[i][k] = 1;
             }
 
-            if(!additionalLine.equals(""))
-                positionCounter += additionalLine.length() + 1;
-
+        }catch (IOException e){
+            return new byte[0][0];
         }
 
-        byte[][] map = new byte[size][size];
-
-        for(int i = 0; i < size; i++){
-            line = nextLine(data, positionCounter);
-            positionCounter += line.length() + 1;
-
-            for(int k = 0; k < size; k++)
-                map[i][k] = (byte)(line.charAt(k) == 'O' ? 1 : 0);
-        }
-
-        motoreImmobile.loadSavedMap(size, generationNumber, map);
+        return savedData;
     }
 
-    private static String nextLine(Byte[] data, int start){
-        StringBuilder line = new StringBuilder();
-        for (int i = start; i < data.length; i++) {
-            char c = (char)data[i].byteValue();
-
-            if(c != '\n')
-                line.append(c);
-            else
-                return line.toString();
-        }
-
-        return "";
-    }
-
-    public static String generateGameSaveString(Universe universe){
+    public static String generateGameSaveString(byte[][] map){
         StringBuilder acc = new StringBuilder();
 
-        acc.append("size");
+        acc.append("x = ");
+        acc.append(map[0].length);
+        acc.append(", y = ");
+        acc.append(map.length);
         acc.append("\n");
-        acc.append(universe.getSize());
-        acc.append("\n");
-
-        acc.append("generationNumber");
-        acc.append("\n");
-        acc.append(universe.getGenerationNumber());
-        acc.append("\n");
-
-        byte[][] map = universe.getMap();
 
         for (byte[] row : map) {
             for (byte e : row)
@@ -140,6 +87,91 @@ public class GameSaveLoad {
         }
 
         return acc.toString();
+    }
+
+    private static Size extractSizeData(Scanner scanner){
+
+        String line;
+        int[] data = new int[2];
+
+        while((line = scanner.nextLine()).charAt(0) == '#');
+
+        String[] infoLine = line.split(",");
+
+        data[0] = Integer.parseInt(infoLine[0].trim().split(" ")[2]);
+        data[1] = Integer.parseInt(infoLine[1].trim().split(" ")[2]);
+
+        return new Size(data[0], data[1]);
+    }
+
+    private static byte[][] loadFromSavedRle(File savedFile){
+
+        byte[][] pattern;
+
+        try (Scanner scanner = new Scanner(savedFile)){
+
+            Size size = extractSizeData(scanner);
+
+            StringBuilder dataAccumulator = new StringBuilder();
+            while(!scanner.hasNext(".*!"))
+                dataAccumulator.append(scanner.nextLine());
+
+            String compressedData = dataAccumulator.append(scanner.next(".*!")).toString();
+            compressedData = compressedData.substring(0, compressedData.length()-1);
+
+            String[] compressedRows = compressedData.split("[$]");
+
+            System.out.println(size);
+            for (String compressedRow : compressedRows) {
+                System.out.println(compressedRow);
+            }
+
+            pattern = size.makeByteMatrix();
+
+            int rowCounter = 0;
+
+            for(int i = 0; i < size.getY(); i++){
+                char[] rowData = compressedRows[rowCounter++].toCharArray();
+                int positionCounter = 0;
+
+                for(int k = 0; k < rowData.length; k++){
+                    int repetitions = 1;
+
+                    StringBuilder repetitionsFinder = new StringBuilder();
+                    while(k < rowData.length && Character.isDigit(rowData[k]))
+                        repetitionsFinder.append(rowData[k++]);
+
+                    if(repetitionsFinder.length() > 0)
+                        repetitions = Integer.parseInt(repetitionsFinder.toString());
+
+                    // Skip n lines, as if there where n$
+                    if(k == rowData.length) {
+                        i += repetitions - 1;
+                        continue;
+                    }
+
+                    char status = rowData[k];
+
+                    for(int f = 0; f < repetitions; f++)
+                        pattern[i][positionCounter++] = (byte)(status == 'o' ? 1 : 0);
+
+                }
+            }
+
+
+            for (byte[] bytes : pattern) {
+                for (byte aByte : bytes) {
+                    System.out.print(aByte);
+                }
+                System.out.println();
+            }
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            return new byte[0][0];
+        }
+
+        return pattern;
     }
 
 }

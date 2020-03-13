@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="ThoroidalGameOfLife:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/ThoroidalGameOfLife_jar</output-path>
+    <root id="archive" name="ThoroidalGameOfLife.jar">
+      <element id="module-output" name="ThoroidalGameOfLife" />
+    </root>
+  </artifact>
+</component>

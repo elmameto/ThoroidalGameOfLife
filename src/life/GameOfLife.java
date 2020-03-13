@@ -12,18 +12,23 @@ public class GameOfLife extends JFrame {
 
     public GameOfLife(){
         super("Game of Life");
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException e) {
+            e.printStackTrace();
+        }
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1500, 1500);
+        setSize(1020, 1120);
         setLocationRelativeTo(null);
 
-        setLayout(new BoxLayout(getContentPane(), BoxLayout.X_AXIS));
+        setLayout(new BoxLayout(getContentPane(), BoxLayout.Y_AXIS));
         setVisible(true);
     }
 
-    private void createControlPanel(GameMaster.Callbacks callbacks){
+    private void createControlPanel(GameMaster gameMaster){
 
-        JPanel buttonsPanel = createButtonsPanel(callbacks);
-        JPanel regulationsPanel = createRegulationsPanel(callbacks);
+        JPanel buttonsPanel = createButtonsPanel(gameMaster);
+        JPanel regulationsPanel = createRegulationsPanel(gameMaster);
         JPanel infoPanel = new JPanel();
 
         generationLabel = new JLabel();
@@ -46,28 +51,31 @@ public class GameOfLife extends JFrame {
         controlPanel.add(infoPanel);
 
         controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.Y_AXIS));
+        controlPanel.setSize(150, 200);
 
         add(controlPanel);
 
-        grid = new Grid(1000, 4);
+        JPanel gridContainer = new JPanel();
+        grid = new Grid(new Size(1000, 1000), new Size(100, 100));
         grid.setBounds(0, 50, 1000, 1000);
-        add(grid);
+        gridContainer.add(grid);
+        gridContainer.setLayout(new BoxLayout(gridContainer, BoxLayout.X_AXIS));
+
+        add(gridContainer);
 
         setVisible(true);
     }
 
-    private JPanel createRegulationsPanel(GameMaster.Callbacks callbacks){
+    private JPanel createRegulationsPanel(GameMaster gameMaster){
         JPanel regulationsPanel = new JPanel();
 
         JSlider speedSlider = new JSlider(JSlider.HORIZONTAL);
         speedSlider.setToolTipText("Speed");
         speedSlider.setMinimum(0);
         speedSlider.setMaximum(100);
-        speedSlider.setValue(50);
-        speedSlider.addChangeListener((ChangeEvent e) -> {
-            int speedValue = speedSlider.getValue();
-            callbacks.setSpeedValue(speedValue);
-        });
+        speedSlider.setValue(speedSlider.getMinimum());
+        gameMaster.setSpeedValue(speedSlider.getValue());
+        speedSlider.addChangeListener((ChangeEvent e) -> gameMaster.setSpeedValue(speedSlider.getValue()));
 
         regulationsPanel.add(speedSlider);
         regulationsPanel.setLayout(new BoxLayout(regulationsPanel, BoxLayout.Y_AXIS));
@@ -75,7 +83,7 @@ public class GameOfLife extends JFrame {
         return regulationsPanel;
     }
 
-    private JPanel createButtonsPanel(GameMaster.Callbacks callbacks){
+    private JPanel createButtonsPanel(GameMaster gameMaster){
         JPanel buttonsPanel = new JPanel();
 
         JToggleButton playToggleButton = new JToggleButton();
@@ -84,10 +92,10 @@ public class GameOfLife extends JFrame {
         playToggleButton.addActionListener((e) -> {
             if(playToggleButton.getText().equals("Play")) {
                 playToggleButton.setText("Pause");
-                callbacks.play();
+                gameMaster.play();
             }else{
                 playToggleButton.setText("Play");
-                callbacks.pause();
+                gameMaster.pause();
             }
         });
 
@@ -95,7 +103,7 @@ public class GameOfLife extends JFrame {
         stopButton.setName("StopButton");
         stopButton.setText("Stop");
         stopButton.addActionListener((e) -> {
-            callbacks.stop();
+            gameMaster.stop();
             playToggleButton.setText("Play");
         });
 
@@ -103,7 +111,15 @@ public class GameOfLife extends JFrame {
         resetButton.setName("ResetButton");
         resetButton.setText("Reset");
         resetButton.addActionListener((e) -> {
-            callbacks.reset();
+            gameMaster.reset();
+            playToggleButton.setText("Play");
+        });
+
+        JButton fillRandom = new JButton();
+        fillRandom.setName("FillRandomButton");
+        fillRandom.setText("Fill random");
+        fillRandom.addActionListener((e) -> {
+            gameMaster.fillRandom();
             playToggleButton.setText("Play");
         });
 
@@ -111,11 +127,12 @@ public class GameOfLife extends JFrame {
         saveToFile.setText("Save");
         saveToFile.addActionListener(e -> {
             playToggleButton.setText("Play");
-            callbacks.stop();
+            gameMaster.stop();
             JFileChooser fileSaver = new JFileChooser();
+            fileSaver.setCurrentDirectory(Const.SAVED_DIR_FILE);
             int result = fileSaver.showSaveDialog(null);
             if(result == JFileChooser.APPROVE_OPTION){
-                callbacks.saveToFile(fileSaver.getSelectedFile().getAbsolutePath());
+                gameMaster.saveToFile(fileSaver.getSelectedFile().getAbsolutePath());
             }
         });
 
@@ -123,65 +140,87 @@ public class GameOfLife extends JFrame {
         loadSavedGame.setText("Load");
         loadSavedGame.addActionListener(e -> {
             playToggleButton.setText("Play");
-            callbacks.stop();
+            gameMaster.stop();
             JFileChooser fileSaver = new JFileChooser();
+            fileSaver.setCurrentDirectory(Const.SAVED_DIR_FILE);
             int result = fileSaver.showOpenDialog(null);
             if(result == JFileChooser.APPROVE_OPTION){
-                callbacks.loadSavedGame(fileSaver.getSelectedFile().getAbsolutePath());
+                gameMaster.loadSavedGame(fileSaver.getSelectedFile().getAbsolutePath());
+            }
+        });
+
+        JButton addPattern = new JButton();
+        addPattern.setText("Add Pattern");
+        addPattern.addActionListener(e -> {
+            playToggleButton.setText("Play");
+            gameMaster.stop();
+            JFileChooser fileSaver = new JFileChooser();
+            fileSaver.setCurrentDirectory(Const.SAVED_DIR_FILE);
+            int result = fileSaver.showOpenDialog(null);
+            if(result == JFileChooser.APPROVE_OPTION){
+                gameMaster.addSavedPattern(fileSaver.getSelectedFile().getAbsolutePath());
             }
         });
 
         buttonsPanel.add(saveToFile);
+        buttonsPanel.add(addPattern);
         buttonsPanel.add(loadSavedGame);
         buttonsPanel.add(playToggleButton);
         buttonsPanel.add(stopButton);
         buttonsPanel.add(resetButton);
+        buttonsPanel.add(fillRandom);
         buttonsPanel.setLayout(new BoxLayout(buttonsPanel, BoxLayout.X_AXIS));
 
         return buttonsPanel;
     }
 
-    public void initialize(Universe universe, GameMaster.Callbacks callbacks){
-        createControlPanel(callbacks);
-        this.universe = universe;
-        updateGridSize();
+    public void initialize(GameMaster gameMaster, byte[][] map, int generationNumber, int alive){
+        createControlPanel(gameMaster);
+        updateGridSize(map, generationNumber, alive);
     }
 
-    public void updateGridSize(){
-        grid.setCells(universe.getSize());
-        updateGrid();
+    public void updateGridSize(byte[][] map, int generationNumber, int alive){
+        grid.setCells(map);
+        updateGrid(map, generationNumber, alive);
     }
 
-    public void updateGrid(){
-        grid.setStatus(universe.getMap());
+    public void updateGrid(byte[][] map, int generationNumber, int alive){
+        grid.setStatus(map);
         grid.repaint();
-        updateStatus();
+        updateStatus(generationNumber, alive);
     }
 
-    private void updateStatus(){
-        generationLabel.setText("Generation #" + universe.getGenerationNumber());
-        aliveLabel.setText("Alive: " + universe.getAlive());
+    private void updateStatus(int generationNumber, int alive){
+        generationLabel.setText("Generation #" + generationNumber);
+        aliveLabel.setText("Alive: " + alive);
     }
 
 }
 
 class Grid extends JComponent{
 
-    private int cells, size, side;
+    private Size gridResolution;
+    private Size gridSize;
+    private int side;
     private byte[][] status;
 
-    Grid(int size, int cells){
+    Grid(Size gridResolution, Size gridSize){
         super();
-        this.size = size;
-        this.cells = cells;
-        side = size/cells;
-        status = new byte[cells][cells];
+        this.gridResolution = gridResolution;
+        this.gridSize = gridSize;
+        updateSide();
+        status = gridSize.makeByteMatrix();
     }
 
-    public void setCells(int cells) {
-        this.cells = cells;
-        side = size/cells;
-        status = new byte[cells][cells];
+    public void setCells(byte[][] map) {
+        this.gridSize = new Size(map);
+        updateSide();
+        status = gridSize.makeByteMatrix();
+        setStatus(map);
+    }
+
+    private void updateSide(){
+        side = Math.min(gridResolution.getX()/gridSize.getX(), gridResolution.getY()/gridSize.getY());
     }
 
     public void setStatus(byte[][] status) {
@@ -190,8 +229,8 @@ class Grid extends JComponent{
 
     @Override
     public void paintComponent(Graphics g) {
-        for(int i = 0; i < cells; i ++) {
-            for(int k = 0; k < cells; k ++) {
+        for(int i = 0; i < gridSize.getY(); i ++) {
+            for(int k = 0; k < gridSize.getX(); k ++) {
                 g.setColor((status[i][k] == 1 ? Color.BLACK : Color.WHITE));
                 g.fillRect(k * side, i * side, side, side);
             }

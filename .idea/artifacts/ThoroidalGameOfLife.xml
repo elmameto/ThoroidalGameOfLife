@@ -1,0 +1,10 @@
+<component name="ArtifactManager">
+  <artifact type="javafx" name="ThoroidalGameOfLife">
+    <output-path>$PROJECT_DIR$/out/artifacts/ThoroidalGameOfLife</output-path>
+    <root id="root">
+      <element id="archive" name="ThoroidalGameOfLife.jar">
+        <element id="module-output" name="ThoroidalGameOfLife" />
+      </element>
+    </root>
+  </artifact>
+</component>
